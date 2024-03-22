@@ -1,6 +1,6 @@
 @font-face {
   font-family: "iconfont"; /* Project id  */
-  src: url('iconfont.ttf?t=1711013829693') format('truetype');
+  src: url('iconfont.ttf?t=1711101502397') format('truetype');
 }
 
 .iconfont {
@@ -9,6 +9,10 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-wenben:before {
+  content: "\e620";
 }
 
 .icon-xiangzuoxuanzhuan:before {
