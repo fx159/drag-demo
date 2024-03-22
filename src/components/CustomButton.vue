@@ -4,6 +4,6 @@ import { Button as VButton } from 'vant'
 
 <template>
   <VButton v-bind="$attrs" type="primary" size="small">
-    <slot>123</slot>
+    <slot>button</slot>
   </VButton>
 </template>

@@ -4,14 +4,12 @@ const spacing = [...Array.from({ length: 1000 })].reduce((prev, _, i) => {
   prev[i] = `${i}px`
   return prev
 }, {})
-const lineHeight = [...Array.from({ length: 1000 })].reduce((prev, _, i) => {
-  prev[i] = `${i}px`
+
+const zIndex = [...Array.from({ length: 1000 })].reduce((prev, _, i) => {
+  prev[i] = `${i}`
   return prev
 }, {})
-const rounded = [...Array.from({ length: 1000 })].reduce((prev, _, i) => {
-  prev[i] = `${i}px`
-  return prev
-}, {})
+
 const fontSize = [...Array.from({ length: 48 })].reduce((prev, _, i) => {
   prev[i + 12] = `${i + 12}px`
   return prev
@@ -36,12 +34,20 @@ export default {
       4: '4px',
       8: '8px',
     },
-    extend: {
-      zIndex: {
-        1: '1',
-        10: '10',
-      },
+    zIndex: {
+      auto: 'auto',
+      ...zIndex,
     },
+    // zIndex: {
+    //   auto: 'auto',
+    //   0: '0',
+    //   1: '1',
+    //   10: '10',
+    //   20: '20',
+    //   30: '30',
+    //   40: '40',
+    //   50: '50',
+    // },
   },
   plugins: [],
 }
