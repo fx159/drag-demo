@@ -2,12 +2,14 @@ lockfileVersion: 5.4
 
 specifiers:
   '@antfu/eslint-config': ^2.8.3
+  '@types/lodash': ^4.17.0
   '@types/node': ^20.11.30
   '@vitejs/plugin-vue': ^5.0.4
   ant-design-vue: 4.x
   autoprefixer: ^10.4.18
   eslint: ^8.57.0
   less: ^4.2.0
+  lodash: ^4.17.21
   postcss: ^8.4.37
   tailwindcss: ^3.4.1
   typescript: ^5.2.2
@@ -19,12 +21,14 @@ specifiers:
 
 dependencies:
   ant-design-vue: 4.1.2_vue@3.4.21
+  lodash: 4.17.21
   vant: 4.8.7_vue@3.4.21
   vue: 3.4.21_typescript@5.4.2
   vue-router: 4.3.0_vue@3.4.21
 
 devDependencies:
   '@antfu/eslint-config': 2.8.3_5iotri5aeibafrgj7thsggiclm
+  '@types/lodash': 4.17.0
   '@types/node': 20.11.30
   '@vitejs/plugin-vue': 5.0.4_vite@5.1.6+vue@3.4.21
   autoprefixer: 10.4.18_postcss@8.4.37
@@ -799,6 +803,10 @@ packages:
 
   /@types/json-schema/7.0.15:
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+    dev: true
+
+  /@types/lodash/4.17.0:
+    resolution: {integrity: sha512-t7dhREVv6dbNj0q17X12j7yDG4bD/DHYX7o5/DbDxobP0HnGPgpRz2Ej77aL7TZT3DSw13fqUTj8J4mMnqa7WA==}
     dev: true
 
   /@types/mdast/3.0.15:

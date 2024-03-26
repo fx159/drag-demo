@@ -8,5 +8,8 @@
 <style lang="less" scoped>
  .input{
   outline: none;
+  // &:disabled{
+  //   background: transparent;
+  // }
  }
 </style>

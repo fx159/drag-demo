@@ -1,11 +1,13 @@
 <script setup lang='ts'>
 import { ref, shallowRef } from 'vue'
-import { Dropdown as ADropdown, Menu as AMenu, MenuItem as AMenuItem } from 'ant-design-vue'
+import { Button as AButton, Dropdown as ADropdown, Menu as AMenu, MenuItem as AMenuItem } from 'ant-design-vue'
+import { cloneDeep } from 'lodash'
 import CustomButton from '@/components/CustomButton.vue'
 import CustomText from '@/components/CustomText.vue'
-import { getStyleNumber } from '@/utils/index'
+import { calculateRotatedPointCoordinate, getCenterPoint, getStyleNumber } from '@/utils/index'
 
 const point = ref(['t', 'l', 'r', 'b', 'lt', 'rt', 'lb', 'rb'])
+const componentRefs = ref<HTMLElement[]>([])
 const cursor: Record<string, string> = {
   t: 'n-resize',
   l: 'w-resize',
@@ -25,6 +27,7 @@ const componentData = shallowRef([{
   style: {
     width: '100px',
     height: '30px',
+    rotate: '0deg',
   },
 }, {
   component: CustomText,
@@ -61,7 +64,7 @@ function handleDrop(e: DragEvent) {
   const rectInfo = editor.value!.getBoundingClientRect()
 
   if (e.dataTransfer?.getData('index')) {
-    const select: any = componentData.value[+e.dataTransfer.getData('index')]
+    const select: any = cloneDeep(componentData.value[+e.dataTransfer.getData('index')])
     select.style = {
       ...select.style,
       top: `${e.clientY - rectInfo.y - 15}px`,
@@ -71,14 +74,10 @@ function handleDrop(e: DragEvent) {
   }
 }
 
-function handleParentMouseDown(e: MouseEvent) {
+function handleMouseDown(e: MouseEvent, item: typeof componentData.value[number]) {
   e.stopPropagation()
-}
-
-function handleMouseDown(e: MouseEvent, index: number) {
-  e.stopPropagation()
+  selectComponent.value = item
   const rectInfo = editor.value?.getBoundingClientRect()
-
   let isFirst = true
   // const height = getStyleNumber(componentList.value[index].style.height)
   const move = (mouseEvent: MouseEvent) => {
@@ -86,15 +85,15 @@ function handleMouseDown(e: MouseEvent, index: number) {
       isFirst = false
       return
     }
-    componentList.value[index].style.left = mouseEvent.clientX - rectInfo!.left > 0 ? `${mouseEvent.clientX - rectInfo!.left - e.offsetX}px` : 0
-    componentList.value[index].style.top = mouseEvent.clientY - rectInfo!.top > 0 ? `${mouseEvent.clientY - rectInfo!.top - e.offsetY}px` : '-4px'
+    selectComponent.value.style.left = mouseEvent.clientX - rectInfo!.left > 0 ? `${mouseEvent.clientX - rectInfo!.left - e.offsetX}px` : 0
+    selectComponent.value.style.top = mouseEvent.clientY - rectInfo!.top > 0 ? `${mouseEvent.clientY - rectInfo!.top - e.offsetY}px` : '-4px'
   }
   const mouseUp = () => {
     document.removeEventListener('mousemove', move)
     document.removeEventListener('mouseup', mouseUp)
   }
-  document.addEventListener('mouseup', mouseUp)
   document.addEventListener('mousemove', move)
+  document.addEventListener('mouseup', mouseUp)
 }
 
 function getPointStyle(point: string, { width, height }: any) {
@@ -138,59 +137,224 @@ function handleShapeMouseDown(e: MouseEvent, point: string) {
   const width = getStyleNumber(selectComponent.value.style.width)
   const left = getStyleNumber(selectComponent.value.style.left)
   const top = getStyleNumber(selectComponent.value.style.top)
-  const startY = e.y
-  const startX = e.x
+  // 当前组件中心点坐标
+  const center = {
+    x: left + width / 2,
+    y: top + height / 2,
+  }
 
+  // 缩放后对称中心点坐标
+  const editorRectinfo = editor.value!.getBoundingClientRect()
+  const curPoint = {
+    x: e.clientX - editorRectinfo.left,
+    y: e.clientY - editorRectinfo.top,
+  }
+
+  const symmetricPoint = {
+    x: center.x - curPoint.x + center.x,
+    y: center.y - curPoint.y + center.y,
+  }
+  const rotate = +selectComponent.value.style.rotate.slice(0, selectComponent.value.style.rotate.length - 3)
   let fn: any
+  let first = true
   switch (point) {
     case 'b':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.height = `${height + mouseEvent.y - startY}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const rotatedcurPositon = calculateRotatedPointCoordinate(curPositon, curPoint, -rotate)
+        const rotatedBottomMiddlePoint = calculateRotatedPointCoordinate({
+          x: curPoint.x,
+          y: rotatedcurPositon.y,
+        }, curPoint, rotate)
+        const newHeight = Math.sqrt((rotatedBottomMiddlePoint.x - symmetricPoint.x) ** 2 + (rotatedBottomMiddlePoint.y - symmetricPoint.y) ** 2)
+        const newCenter = {
+          x: rotatedBottomMiddlePoint.x - (rotatedBottomMiddlePoint.x - symmetricPoint.x) / 2,
+          y: rotatedBottomMiddlePoint.y + (symmetricPoint.y - rotatedBottomMiddlePoint.y) / 2,
+        }
+        selectComponent.value.style.width = `${width}px`
+        selectComponent.value.style.height = `${Math.round(newHeight)}px`
+        selectComponent.value.style.top = `${Math.round(newCenter.y - (newHeight / 2))}px`
+        selectComponent.value.style.left = `${Math.round(newCenter.x - (width / 2))}px`
       }
       break
     case 'l':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.width = `${width - (mouseEvent.x - startX)}px`
-        selectComponent.value.style.left = `${left + (mouseEvent.x - startX)}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const rotatedcurPositon = calculateRotatedPointCoordinate(curPositon, curPoint, -rotate)
+        const rotatedLeftMiddlePoint = calculateRotatedPointCoordinate({
+          x: rotatedcurPositon.x,
+          y: curPoint.y,
+        }, curPoint, rotate)
+        const newWidth = Math.sqrt((rotatedLeftMiddlePoint.x - symmetricPoint.x) ** 2 + (rotatedLeftMiddlePoint.y - symmetricPoint.y) ** 2)
+        const newCenter = {
+          x: rotatedLeftMiddlePoint.x - (rotatedLeftMiddlePoint.x - symmetricPoint.x) / 2,
+          y: rotatedLeftMiddlePoint.y + (symmetricPoint.y - rotatedLeftMiddlePoint.y) / 2,
+        }
+        selectComponent.value.height = `${height}px`
+        selectComponent.value.width = `${Math.round(newWidth)}px`
+        selectComponent.value.top = `${Math.round(newCenter.y - (height / 2))}px`
+        selectComponent.value.left = `${Math.round(newCenter.x - (newWidth / 2))}px`
       }
       break
     case 'r':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.width = `${width + (mouseEvent.x - startX)}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+
+        const rotatedcurPositon = calculateRotatedPointCoordinate(curPositon, curPoint, -rotate)
+        const rotatedRightMiddlePoint = calculateRotatedPointCoordinate({
+          x: rotatedcurPositon.x,
+          y: curPoint.y,
+        }, curPoint, rotate)
+        const newWidth = Math.sqrt((rotatedRightMiddlePoint.x - symmetricPoint.x) ** 2 + (rotatedRightMiddlePoint.y - symmetricPoint.y) ** 2)
+        const newCenter = {
+          x: rotatedRightMiddlePoint.x - (rotatedRightMiddlePoint.x - symmetricPoint.x) / 2,
+          y: rotatedRightMiddlePoint.y + (symmetricPoint.y - rotatedRightMiddlePoint.y) / 2,
+        }
+        selectComponent.value.style.height = `${height}px`
+        selectComponent.value.style.width = `${Math.round(newWidth)}px`
+        selectComponent.value.style.top = `${Math.round(newCenter.y - (height / 2))}px`
+        selectComponent.value.style.left = `${Math.round(newCenter.x - (newWidth / 2))}px`
       }
       break
     case 't':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.height = `${height - (mouseEvent.y - startY)}px`
-        selectComponent.value.style.top = `${top + (mouseEvent.y - startY)}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const rotatedcurPositon = calculateRotatedPointCoordinate(curPositon, curPoint, -rotate)
+        // 算出旋转前 y 坐标，再用 curPoint 的 x 坐标，重新计算它们旋转后对应的坐标
+        const rotatedTopMiddlePoint = calculateRotatedPointCoordinate({
+          x: curPoint.x,
+          y: rotatedcurPositon.y,
+        }, curPoint, rotate)
+        // 用旋转后的坐标和对称点算出新的高度（勾股定理）
+        const newHeight = Math.sqrt((rotatedTopMiddlePoint.x - symmetricPoint.x) ** 2 + (rotatedTopMiddlePoint.y - symmetricPoint.y) ** 2)
+        const newCenter = {
+          x: rotatedTopMiddlePoint.x - (rotatedTopMiddlePoint.x - symmetricPoint.x) / 2,
+          y: rotatedTopMiddlePoint.y + (symmetricPoint.y - rotatedTopMiddlePoint.y) / 2,
+        }
+        selectComponent.value.style.width = `${width}px`
+        selectComponent.value.style.height = `${Math.round(newHeight)}px`
+        selectComponent.value.style.top = `${Math.round(newCenter.y - (newHeight / 2))}px`
+        selectComponent.value.style.left = `${Math.round(newCenter.x - (width / 2))}px`
       }
       break
     case 'lt':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.height = `${height - (mouseEvent.y - startY)}px`
-        selectComponent.value.style.top = `${top + (mouseEvent.y - startY)}px`
-        selectComponent.value.style.width = `${width - (mouseEvent.x - startX)}px`
-        selectComponent.value.style.left = `${left + (mouseEvent.x - startX)}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const newCenterPoint = getCenterPoint(curPositon, symmetricPoint)
+        const newTopLeftPoint = calculateRotatedPointCoordinate(curPositon, newCenterPoint, -rotate)
+        const newBottomRightPoint = calculateRotatedPointCoordinate(symmetricPoint, newCenterPoint, -rotate)
+        const newWidth = newBottomRightPoint.x - newTopLeftPoint.x
+        const newHeight = newBottomRightPoint.y - newTopLeftPoint.y
+        if (newWidth > 0 && newHeight > 0) {
+          selectComponent.value.style.width = `${Math.round(newWidth)}px`
+          selectComponent.value.style.height = `${Math.round(newHeight)}px`
+          selectComponent.value.style.left = `${Math.round(newTopLeftPoint.x)}px`
+          selectComponent.value.style.top = `${Math.round(newTopLeftPoint.y)}px`
+        }
       }
       break
     case 'lb':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.width = `${width - (mouseEvent.x - startX)}px`
-        selectComponent.value.style.left = `${left + (mouseEvent.x - startX)}px`
-        selectComponent.value.style.height = `${height + mouseEvent.y - startY}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const newCenterPoint = getCenterPoint(curPositon, symmetricPoint)
+        const newTopRightPoint = calculateRotatedPointCoordinate(symmetricPoint, newCenterPoint, -rotate)
+        const newBottomLeftPoint = calculateRotatedPointCoordinate(curPositon, newCenterPoint, -rotate)
+        const newWidth = newTopRightPoint.x - newBottomLeftPoint.x
+        const newHeight = newBottomLeftPoint.y - newTopRightPoint.y
+        if (newWidth > 0 && newHeight > 0) {
+          selectComponent.value.style.width = `${Math.round(newWidth)}px`
+          selectComponent.value.style.height = `${Math.round(newHeight)}px`
+          selectComponent.value.style.left = `${Math.round(newBottomLeftPoint.x)}px`
+          selectComponent.value.style.top = `${Math.round(newTopRightPoint.y)}px`
+        }
       }
       break
     case 'rt':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.width = `${width + (mouseEvent.x - startX)}px`
-        selectComponent.value.style.height = `${height - (mouseEvent.y - startY)}px`
-        selectComponent.value.style.top = `${top + (mouseEvent.y - startY)}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const newCenterPoint = getCenterPoint(curPositon, symmetricPoint)
+        const newTopRightPoint = calculateRotatedPointCoordinate(curPositon, newCenterPoint, -rotate)
+        const newBottomLeftPoint = calculateRotatedPointCoordinate(symmetricPoint, newCenterPoint, -rotate)
+        const newWidth = newTopRightPoint.x - newBottomLeftPoint.x
+        const newHeight = newBottomLeftPoint.y - newTopRightPoint.y
+        if (newWidth > 0 && newHeight > 0) {
+          selectComponent.value.style.width = `${Math.round(newWidth)}px`
+          selectComponent.value.style.height = `${Math.round(newHeight)}px`
+          selectComponent.value.style.left = `${Math.round(newBottomLeftPoint.x)}px`
+          selectComponent.value.style.top = `${Math.round(newTopRightPoint.y)}px`
+        }
       }
       break
     case 'rb':
       fn = function (mouseEvent: MouseEvent) {
-        selectComponent.value.style.width = `${width + (mouseEvent.x - startX)}px`
-        selectComponent.value.style.height = `${height + mouseEvent.y - startY}px`
+        if (first) {
+          first = false
+          return
+        }
+        const curPositon = {
+          x: mouseEvent.clientX - Math.round(editorRectinfo.left),
+          y: mouseEvent.clientY - Math.round(editorRectinfo.top),
+        }
+        const newCenterPoint = getCenterPoint(curPositon, symmetricPoint)
+        const newTopLeftPoint = calculateRotatedPointCoordinate(symmetricPoint, newCenterPoint, -rotate)
+        const newBottomRightPoint = calculateRotatedPointCoordinate(curPositon, newCenterPoint, -rotate)
+        const newWidth = newBottomRightPoint.x - newTopLeftPoint.x
+        const newHeight = newBottomRightPoint.y - newTopLeftPoint.y
+        if (newWidth > 0 && newHeight > 0) {
+          selectComponent.value.style.width = `${Math.round(newWidth)}px`
+          selectComponent.value.style.height = `${Math.round(newHeight)}px`
+          selectComponent.value.style.left = `${Math.round(newTopLeftPoint.x)}px`
+          selectComponent.value.style.top = `${Math.round(newTopLeftPoint.y)}px`
+        }
       }
       break
   }
@@ -202,10 +366,6 @@ function handleShapeMouseDown(e: MouseEvent, point: string) {
   document.addEventListener('mouseup', up)
 }
 
-function handleComponentClick(item: typeof componentData.value[number]) {
-  selectComponent.value = item
-}
-
 function handleUnselectComponet(e: MouseEvent) {
   e.stopPropagation()
   openDropdown.value = false
@@ -213,9 +373,34 @@ function handleUnselectComponet(e: MouseEvent) {
 }
 
 // 旋转操作
-function handleComponentRotate(e: MouseEvent) {
+function handleComponentRotate(e: MouseEvent, index: number) {
   e.preventDefault()
   e.stopPropagation()
+  const rotate = +selectComponent.value.style.rotate.slice(0, selectComponent.value.style.rotate.length - 3)
+
+  const { height, width, left, top } = componentRefs.value[index].getBoundingClientRect()
+  const y = height / 2 + top
+  const x = width / 2 + left
+  const startX = e.clientX
+  const startY = e.clientY
+
+  const startRotate = Math.atan2(startY - y, startX - x) / (Math.PI / 180)
+  let isFirst = true
+  const move = (moveEvent: MouseEvent) => {
+    if (isFirst) {
+      isFirst = false
+      return
+    }
+    const endRotate = Math.atan2(moveEvent.clientY - y, moveEvent.clientX - x) / (Math.PI / 180)
+    selectComponent.value.style.rotate = `${Math.round(rotate + endRotate - startRotate)}deg`
+  }
+
+  const up = () => {
+    document.removeEventListener('mousemove', move)
+    document.removeEventListener('mouseup', up)
+  }
+  document.addEventListener('mousemove', move)
+  document.addEventListener('mouseup', up)
 }
 
 function handleContextMenu(e: MouseEvent, id: number) {
@@ -261,6 +446,10 @@ function handleStickBottom(index: number) {
   componentList.value[0] = temp
   openDropdown.value = false
 }
+
+function onExport() {
+  console.log(componentList.value)
+}
 </script>
 
 <template>
@@ -268,22 +457,22 @@ function handleStickBottom(index: number) {
     <div class="left px-5 flex-1 h-full border-solid border flex flex-wrap" @dragstart="handleDragStart">
       <div v-for="(item, index) in componentData" :key="index" class="cursor h-40 mr-10" :draggable="true" :data-index="index">
         <span class="iconfont" :class="`icon-${item.name}`" />
-        <!-- <CustomText /> -->
       </div>
     </div>
     <div
       ref="editor" class="container w-350 h-750 mx-20 border-solid border relative z-10" @dragover="handleDragOver" @drop="handleDrop"
-      @click="handleUnselectComponet" @mousedown="handleParentMouseDown"
+      @click.self="handleUnselectComponet"
     >
       <div
         v-for="(component, index) in componentList"
-        :key="component.id" class="absolute"
+        :key="component.id" ref="componentRefs"
+        class="absolute"
         :style="{ ...component.style, zIndex: index }"
-        @click.stop="handleComponentClick(component)" @mousedown="e => handleMouseDown(e, index)"
+        @mousedown="e => handleMouseDown(e, component)"
         @contextmenu.stop="e => handleContextMenu(e, component.id)"
       >
         <div :class="[selectComponent && selectComponent.id === component.id ? 'shape-active' : 'shape']">
-          <span class="iconfont icon-xiangzuoxuanzhuan" @mousedown.stop="handleComponentRotate" />
+          <span class="iconfont icon-xiangzuoxuanzhuan" @mousedown.self="e => handleComponentRotate(e, index)" />
           <div
             v-for="(item, i) in point" :key="i" class="shape-point"
             :style="getPointStyle(item, component.style)" @mousedown="e => handleShapeMouseDown(e, item)"
@@ -310,11 +499,13 @@ function handleStickBottom(index: number) {
             </AMenu>
           </template>
         </ADropdown>
-        <component :is="component.component" style="width:100%;height:100%" />
+        <component :is="component.component" v-bind="component.props" style="width:100%;height:100%" />
       </div>
     </div>
     <div class="right flex-1 border border-solid h-full">
-      right
+      <AButton @click="onExport">
+        导出
+      </AButton>
     </div>
   </div>
 </template>

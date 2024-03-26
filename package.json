@@ -12,12 +12,14 @@
   },
   "dependencies": {
     "ant-design-vue": "4.x",
+    "lodash": "^4.17.21",
     "vant": "^4.8.7",
     "vue": "^3.4.21",
     "vue-router": "4"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^2.8.3",
+    "@types/lodash": "^4.17.0",
     "@types/node": "^20.11.30",
     "@vitejs/plugin-vue": "^5.0.4",
     "autoprefixer": "^10.4.18",
